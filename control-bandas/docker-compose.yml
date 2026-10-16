@@ -1,0 +1,50 @@
+# Entorno local completo:  docker compose up -d --build   →   http://localhost:8080
+# Las credenciales de abajo son SOLO para desarrollo local; no se usan en ningún servidor real.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8080:80"
+    environment:
+      CB_DB_HOST: db
+      CB_DB_NAME: control_bandas_dev
+      CB_DB_USER: cb_dev
+      CB_DB_PASS: cb_dev_pw
+    volumes:
+      - ./public_html:/var/www/html
+      - ./bin:/var/www/bin:ro
+      - ./database:/var/www/database:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mariadb:10.11
+    environment:
+      MARIADB_ROOT_PASSWORD: root_dev_pw
+      MARIADB_DATABASE: control_bandas_dev
+      MARIADB_USER: cb_dev
+      MARIADB_PASSWORD: cb_dev_pw
+      TZ: America/Hermosillo
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--default-time-zone=-07:00"]
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  phpmyadmin:
+    image: phpmyadmin:5
+    environment:
+      PMA_HOST: db
+    ports:
+      - "8081:80"
+    depends_on:
+      - db
+
+volumes:
+  db_data:

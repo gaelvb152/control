@@ -1,0 +1,23 @@
+digraph pipeline {
+  rankdir=TB; nodesep=0.35; ranksep=0.5;
+  graph [fontname="DejaVu Sans", pad=0.35, bgcolor="white", dpi=170]
+  node [fontname="DejaVu Sans", fontsize=11, shape=box, style="rounded,filled", fillcolor="#F4F6F8", color="#5B6B7B", margin="0.18,0.10"]
+  edge [fontname="DejaVu Sans", fontsize=9.5, color="#5B6B7B", arrowsize=0.8]
+  node [fontsize=10.5]
+  pr [label="Pull Request\n→ develop / main", fillcolor="#E6F0FA", color="#2F6DB5"];
+  lint [label="1. Lint\nsecretos · php -l · PSR-12", fillcolor="#FFFFFF"];
+  test [label="2. Pruebas de API\nPHP 8.2 y 8.3 + MariaDB\n103 casos", fillcolor="#FFFFFF"];
+  stan [label="PHPStan\n(informativo)", fillcolor="#F4F6F8", style="rounded,filled,dashed"];
+  merge [label="Merge a develop", fillcolor="#E8F5E9", color="#2E7D32"];
+  dstg [label="3. Deploy staging\nFTPS (automático)", fillcolor="#E8F5E9", color="#2E7D32"];
+  smk1 [label="4. Smoke test\nstaging", fillcolor="#FFFFFF"];
+  tag [label="Tag vX.Y.Z\nsobre main", fillcolor="#DDEFE0", color="#1B5E20"];
+  appr [label="Aprobación manual\n(entorno production)", fillcolor="#FFF4E0", color="#C77B00", shape=octagon];
+  dprd [label="5. Deploy producción\nFTPS", fillcolor="#DDEFE0", color="#1B5E20"];
+  smk2 [label="6. Smoke test\nproducción", fillcolor="#FFFFFF"];
+  rel [label="7. Release en GitHub\n+ notas automáticas", fillcolor="#FFFFFF"];
+  pr -> lint -> test -> merge -> dstg -> smk1;
+  lint -> stan [style=dashed];
+  smk1 -> tag [style=dotted, label="release/* → main", constraint=false];
+  tag -> appr -> dprd -> smk2 -> rel;
+}

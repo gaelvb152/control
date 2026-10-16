@@ -1,0 +1,15 @@
+# Análisis estático (informativo en CI: no bloquea el merge mientras el código heredado se limpia).
+# Para fijar el estado actual como "línea base" y que solo falle con errores NUEVOS:
+#   vendor/bin/phpstan analyse --generate-baseline phpstan-baseline.neon
+# y descomenta la sección "includes".
+#
+# includes:
+#     - phpstan-baseline.neon
+
+parameters:
+    level: 3
+    paths:
+        - public_html
+    excludePaths:
+        - public_html/uploads_nodrizas
+    treatPhpDocTypesAsCertain: false

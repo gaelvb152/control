@@ -1,0 +1,23 @@
+digraph gitflow {
+  rankdir=TB; nodesep=0.5; ranksep=0.7;
+  graph [fontname="DejaVu Sans", pad=0.35, bgcolor="white", dpi=170]
+  node [fontname="DejaVu Sans", fontsize=11, shape=box, style="rounded,filled", fillcolor="#F4F6F8", color="#5B6B7B", margin="0.18,0.10"]
+  edge [fontname="DejaVu Sans", fontsize=9.5, color="#5B6B7B", arrowsize=0.8]
+  feature [label="feature/*  ·  fix/*\n(una por tarea)", fillcolor="#E6F0FA", color="#2F6DB5"];
+  develop [label="develop\nintegración + staging", fillcolor="#E8F5E9", color="#2E7D32", penwidth=2];
+  release [label="release/vX.Y.Z\nestabilización", fillcolor="#FFF4E0", color="#C77B00"];
+  main [label="main\nproducción (solo versiones)", fillcolor="#DDEFE0", color="#1B5E20", penwidth=2.5];
+  hotfix [label="hotfix/*\ncorrección urgente", fillcolor="#FDECEC", color="#B33A3A"];
+  tag [shape=note, label="tag vX.Y.Z\n→ despliega a producción", fillcolor="#FFFFFF", color="#1B5E20"];
+  stg [shape=note, label="push a develop\n→ despliega a staging", fillcolor="#FFFFFF", color="#2E7D32"];
+
+  feature -> develop [label="PR + CI + 1 revisión\n(squash)"];
+  develop -> release [label="se congela el alcance"];
+  release -> main [label="PR + regresión en staging\n(merge commit)"];
+  main -> tag [style=dashed];
+  develop -> stg [style=dashed];
+  main -> hotfix [label="parte de main", constraint=false, color="#B33A3A", fontcolor="#B33A3A"];
+  hotfix -> main [label="PR urgente + tag PATCH", color="#B33A3A", fontcolor="#B33A3A"];
+  hotfix -> develop [label="se fusiona de vuelta", color="#B33A3A", fontcolor="#B33A3A", constraint=false];
+  main -> develop [label="release terminado:\nmain → develop", style=dotted, constraint=false];
+}

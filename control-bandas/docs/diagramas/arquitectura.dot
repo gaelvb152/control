@@ -1,0 +1,27 @@
+digraph arquitectura {
+  rankdir=TB; nodesep=0.35; ranksep=0.7;
+  graph [fontname="DejaVu Sans", pad=0.35, bgcolor="white", dpi=170]
+  node [fontname="DejaVu Sans", fontsize=11, shape=box, style="rounded,filled", fillcolor="#F4F6F8", color="#5B6B7B", margin="0.18,0.10"]
+  edge [fontname="DejaVu Sans", fontsize=9.5, color="#5B6B7B", arrowsize=0.8]
+  subgraph cluster_cliente { label="Navegador (celular del operador / PC de oficina)"; fontname="DejaVu Sans"; fontsize=11; style="rounded,dashed"; color="#9AA7B4";
+    SPA [label="index.php\nAplicación de una sola página (JavaScript)\nAsignaciones · Solicitudes · Inventario\nReportes · Usuarios", fillcolor="#E6F0FA", color="#2F6DB5"];
+    CAM [label="Cámara y lienzo táctil\n(foto de la nodriza, firma)", fillcolor="#E6F0FA", color="#2F6DB5"];
+  }
+  subgraph cluster_host { label="Hostinger — Apache + PHP (public_html/)"; fontname="DejaVu Sans"; fontsize=11; style="rounded,dashed"; color="#9AA7B4";
+    AUTH [label="login.php · logout.php\ncheck_session.php\nsession_config.php · auth_check.php", fillcolor="#FFF4E0", color="#C77B00"];
+    API [label="api_viajes.php · api_inventario.php\napi_usuarios.php · api_reportes.php\napi_notificaciones.php", fillcolor="#FFF4E0", color="#C77B00"];
+    LIB [label="lib.php\nTransacciones · inventario con bloqueo de filas\nbitácora · fotos · avisos", fillcolor="#FFF4E0", color="#C77B00"];
+    FOTO [label="foto.php\nSolo dueño del viaje o admin", fillcolor="#FFF4E0", color="#C77B00"];
+    UP [shape=folder, label="uploads_nodrizas/\n(acceso directo denegado)", fillcolor="#FDECEC", color="#B33A3A"];
+    CFG [label="db.php + config.php\nconfig.local.php (fuera de git)\no variables CB_DB_*", fillcolor="#FDECEC", color="#B33A3A"];
+  }
+  DB [shape=cylinder, label="MariaDB / MySQL\nInnoDB · utf8mb4", fillcolor="#E8F5E9", color="#2E7D32"];
+
+  SPA -> AUTH [label="POST /login.php"];
+  SPA -> API [label="fetch JSON\n+ X-Requested-With"];
+  SPA -> FOTO [label="GET imagen"];
+  CAM -> SPA [style=dashed, arrowhead=none];
+  AUTH -> CFG [style=dashed]; API -> LIB; FOTO -> LIB; LIB -> CFG [style=dashed];
+  LIB -> DB [label="PDO + transacciones"]; AUTH -> DB;
+  LIB -> UP [label="guarda / lee JPEG"]; FOTO -> UP;
+}

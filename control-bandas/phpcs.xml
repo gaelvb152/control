@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<ruleset name="Control de Bandas">
+  <description>
+    PSR-12 obligatorio para el código NUEVO (tests/, bin/ y los archivos de configuración).
+    El resto de public_html/ es código heredado con estilo propio (funciones de una línea, etc.):
+    se revisa su sintaxis (php -l) y con PHPStan en modo informativo. Conforme se refactorice un
+    archivo heredado, se agrega a la lista de abajo.
+  </description>
+
+  <arg name="colors"/>
+  <arg name="extensions" value="php"/>
+  <arg name="cache" value=".phpcs-cache"/>
+  <arg value="sp"/>
+
+  <file>tests</file>
+  <file>bin</file>
+  <file>public_html/config.php</file>
+  <file>public_html/config.example.php</file>
+  <file>public_html/db.php</file>
+
+  <rule ref="PSR12"/>
+
+  <!-- Los nombres de prueba llevan el ID del caso (test_CP_AUT_01_...) para trazarlos contra el plan de pruebas -->
+  <rule ref="PSR1.Methods.CamelCapsMethodName">
+    <exclude-pattern>tests/*</exclude-pattern>
+  </rule>
+  <rule ref="Generic.Files.LineLength">
+    <properties>
+      <property name="lineLimit" value="170"/>
+      <property name="absoluteLineLimit" value="0"/>
+    </properties>
+  </rule>
+  <config name="ignore_warnings_on_exit" value="1"/>
+
+  <!-- Los scripts CLI de bin/ ejecutan código al cargarse y no declaran namespace: es lo esperado en un script -->
+  <rule ref="PSR1.Files.SideEffects.FoundWithSymbols">
+    <exclude-pattern>bin/*</exclude-pattern>
+    <exclude-pattern>public_html/*</exclude-pattern>
+    <exclude-pattern>tests/bootstrap.php</exclude-pattern>
+  </rule>
+  <rule ref="PSR1.Classes.ClassDeclaration.MissingNamespace">
+    <exclude-pattern>bin/*</exclude-pattern>
+  </rule>
+</ruleset>

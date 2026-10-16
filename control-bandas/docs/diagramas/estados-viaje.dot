@@ -1,0 +1,21 @@
+digraph estados {
+  rankdir=TB; nodesep=0.5; ranksep=0.65;
+  graph [fontname="DejaVu Sans", pad=0.35, bgcolor="white", dpi=170]
+  node [fontname="DejaVu Sans", fontsize=11, shape=box, style="rounded,filled", fillcolor="#F4F6F8", color="#5B6B7B", margin="0.18,0.10"]
+  edge [fontname="DejaVu Sans", fontsize=9.5, color="#5B6B7B", arrowsize=0.8]
+  node [shape=box, style="rounded,filled", fillcolor="#E6F0FA", color="#2F6DB5"]
+  ini [shape=circle, label="", width=0.18, fillcolor="#333333", color="#333333"];
+  asignado [label="asignado\n(admin importa el viaje)"];
+  aceptado [label="aceptado\n(operador acepta)"];
+  listo [label="listo\n(conteo confirmado)", fillcolor="#E8F5E9", color="#2E7D32"];
+  esperando [label="esperando\n(solicitud pendiente)", fillcolor="#FFF4E0", color="#C77B00"];
+  confirmado [label="confirmado\n(operador firmó)", fillcolor="#DDEFE0", color="#1B5E20", peripheries=2];
+  ini -> asignado;
+  asignado -> aceptado [label="aceptar"];
+  aceptado -> listo [label="contar\n(con foto si cuenta menos)"];
+  listo -> esperando [label="solicitar"];
+  esperando -> listo [label="aprobar · rechazar\n· cancelar"];
+  listo -> listo [label="entregar · ajustar_total\n(admin)"];
+  listo -> confirmado [label="firmar"];
+  confirmado -> confirmado [label="inmutable para\nel operador", style=dashed];
+}

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Configuración de PHPUnit (compatible con PHPUnit 9.6, 10.5 y 11).
+  Las pruebas de API necesitan:
+    - una base MySQL/MariaDB con las migraciones aplicadas (php bin/migrate.php)
+    - el servidor de PHP levantado con las mismas variables CB_DB_*  -> bin/run-api-tests.sh lo hace todo
+-->
+<phpunit bootstrap="tests/bootstrap.php"
+         colors="true"
+         failOnWarning="true"
+         failOnRisky="true"
+         cacheResult="false">
+  <testsuites>
+    <testsuite name="api">
+      <directory suffix="Test.php">tests/Api</directory>
+    </testsuite>
+  </testsuites>
+  <php>
+    <env name="CB_TEST_BASE_URL" value="http://127.0.0.1:8080"/>
+  </php>
+</phpunit>

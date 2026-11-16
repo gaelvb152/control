@@ -1,0 +1,83 @@
+# Rollback manual: regresa un entorno a una etiqueta anterior y, si se
+# indica, restaura la base de datos con el respaldo de un despliegue.
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      entorno:
+        description: Entorno
+        type: choice
+        options: [staging, production]
+        required: true
+      etiqueta:
+        description: Versión a la que se regresa (p. ej. v1.3.2)
+        required: true
+      respaldo_run_id:
+        description: (Opcional) ID de la ejecución de CD cuyo respaldo se restaura
+        required: false
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: deploy-${{ inputs.entorno }}
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: ${{ inputs.entorno }}
+      url: ${{ vars.APP_URL }}
+    env:
+      APP_URL: ${{ vars.APP_URL }}
+      DB_HOST: ${{ secrets.DB_HOST }}
+      DB_NAME: ${{ secrets.DB_NAME }}
+      DB_USER: ${{ secrets.DB_USER }}
+      DB_PASS: ${{ secrets.DB_PASS }}
+      FTP_HOST: ${{ secrets.FTP_HOST }}
+      FTP_USER: ${{ secrets.FTP_USER }}
+      FTP_PASS: ${{ secrets.FTP_PASS }}
+      FTP_DIR: ${{ vars.FTP_DIR }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Herramientas
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp mariadb-client > /dev/null
+
+      - name: Permisos de los scripts (por si se subieron desde Windows)
+        run: chmod +x scripts/*/*.sh bin/*.sh
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: none
+
+      - name: Descargar respaldo
+        if: inputs.respaldo_run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          pattern: respaldo-${{ inputs.entorno }}-*
+          path: build/respaldo
+          merge-multiple: true
+          run-id: ${{ inputs.respaldo_run_id }}
+          github-token: ${{ github.token }}
+
+      - name: Rollback
+        env:
+          ENTORNO: ${{ inputs.entorno }}
+          ETIQUETA: ${{ inputs.etiqueta }}
+        run: |
+          args=("$ENTORNO" "$ETIQUETA")
+          if [ -d build/respaldo ]; then
+            args+=("$(find build/respaldo -name '*.sql.gz*' | head -1)")
+          fi
+          scripts/despliegue/rollback.sh "${args[@]}"

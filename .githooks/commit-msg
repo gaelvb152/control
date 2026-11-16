@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Rechaza mensajes que no siguen Conventional Commits:  tipo(área): descripción
+msg=$(head -1 "$1")
+if ! grep -qE '^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9_-]+\))?!?: .{3,}' <<< "$msg" \
+   && ! grep -qE '^(Merge|Revert) ' <<< "$msg"; then
+  echo "✗ Mensaje de commit no válido: \"$msg\""
+  echo "  Formato: tipo(área): descripción   p. ej.  feat(viajes): permite cancelar una solicitud"
+  exit 1
+fi

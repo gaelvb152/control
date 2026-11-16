@@ -1,0 +1,10 @@
+/build/
+/vendor/
+config.local.php
+.env
+*.sql.gz
+*.sql.gz.gpg
+public_html/uploads_nodrizas/*
+!public_html/uploads_nodrizas/.htaccess
+.phpunit.result.cache
+.phpcs-cache

@@ -1,0 +1,11 @@
+# Endpoints de Control de Bandas que solo deben responder con sesión iniciada.
+# Sin sesión responden 401 (requireLogin) o 403 (rol sin permiso).
+api_cuenta.php
+api_estadisticas.php
+api_inventario.php
+api_notificaciones.php
+api_reportes.php
+api_usuarios.php
+api_viajes.php
+foto.php?id=1&t=foto
+foto.php?id=1&t=firma

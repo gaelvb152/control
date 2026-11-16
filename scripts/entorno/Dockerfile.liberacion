@@ -1,0 +1,19 @@
+# Imagen con la misma configuración que el hosting de producción.
+FROM php:8.2-apache
+
+RUN docker-php-ext-install pdo_mysql mysqli \
+ && a2enmod rewrite headers \
+ && sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf
+
+# Mismos parámetros de PHP que en hPanel (Fase 1).
+RUN { \
+      echo 'date.timezone=America/Hermosillo'; \
+      echo 'display_errors=Off'; \
+      echo 'log_errors=On'; \
+      echo 'expose_php=Off'; \
+      echo 'session.cookie_httponly=1'; \
+      echo 'session.cookie_samesite=Lax'; \
+      echo 'session.use_strict_mode=1'; \
+      echo 'upload_max_filesize=8M'; \
+      echo 'post_max_size=10M'; \
+    } > /usr/local/etc/php/conf.d/control-bandas.ini

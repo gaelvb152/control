@@ -1,0 +1,183 @@
+# Liberación y despliegue continuo.
+#   develop o release/*  ->  staging     (automático)
+#   etiqueta vX.Y.Z      ->  production  (requiere aprobación manual)
+# Pasos: revisión -> pruebas -> paquete -> aprobación -> respaldo ->
+#        migraciones -> subida FTPS -> prueba de humo -> (rollback si falla)
+name: CD - Liberación y despliegue
+
+on:
+  push:
+    branches: [develop, 'release/**']
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write   # para crear el Release en GitHub
+
+# Nunca dos despliegues al mismo entorno a la vez; el segundo espera.
+concurrency:
+  group: deploy-${{ startsWith(github.ref, 'refs/tags/v') && 'production' || 'staging' }}
+  cancel-in-progress: false
+
+jobs:
+  calidad:
+    name: Revisión y pruebas
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
+  paquete:
+    name: 3. Armar paquete
+    needs: calidad
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      entorno: ${{ steps.datos.outputs.entorno }}
+      version: ${{ steps.datos.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: datos
+        name: Entorno y versión
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "entorno=production" >> "$GITHUB_OUTPUT"
+            echo "version=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          else
+            echo "entorno=staging" >> "$GITHUB_OUTPUT"
+            echo "version=${GITHUB_REF_NAME//\//-}-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Permisos de los scripts (por si se subieron desde Windows)
+        run: chmod +x scripts/*/*.sh bin/*.sh
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: none
+
+      - name: Empaquetar
+        run: VERSION="${{ steps.datos.outputs.version }}" scripts/despliegue/empaquetar.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paquete-${{ steps.datos.outputs.version }}
+          path: build/paquete.tar.gz
+          retention-days: 30
+
+  desplegar:
+    name: 4. Desplegar en ${{ needs.paquete.outputs.entorno }}
+    needs: paquete
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # El entorno "production" tiene revisores obligatorios: el job se
+    # detiene aquí hasta que el responsable de TI lo aprueba.
+    environment:
+      name: ${{ needs.paquete.outputs.entorno }}
+      url: ${{ vars.APP_URL }}
+    env:
+      ENTORNO: ${{ needs.paquete.outputs.entorno }}
+      VERSION: ${{ needs.paquete.outputs.version }}
+      APP_URL: ${{ vars.APP_URL }}
+      DB_HOST: ${{ secrets.DB_HOST }}
+      DB_NAME: ${{ secrets.DB_NAME }}
+      DB_USER: ${{ secrets.DB_USER }}
+      DB_PASS: ${{ secrets.DB_PASS }}
+      CB_DB_HOST: ${{ secrets.DB_HOST }}
+      CB_DB_NAME: ${{ secrets.DB_NAME }}
+      CB_DB_USER: ${{ secrets.DB_USER }}
+      CB_DB_PASS: ${{ secrets.DB_PASS }}
+      FTP_HOST: ${{ secrets.FTP_HOST }}
+      FTP_USER: ${{ secrets.FTP_USER }}
+      FTP_PASS: ${{ secrets.FTP_PASS }}
+      FTP_DIR: ${{ vars.FTP_DIR }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+      MIGRACIONES_BASE: ${{ vars.MIGRACIONES_BASE }}
+      TZ: America/Hermosillo
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # se necesitan las etiquetas para el rollback
+
+      - name: Herramientas
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq lftp mariadb-client > /dev/null
+
+      - name: Permisos de los scripts (por si se subieron desde Windows)
+        run: chmod +x scripts/*/*.sh bin/*.sh
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql
+          tools: none
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: paquete-${{ env.VERSION }}
+          path: build
+
+      - name: Desempaquetar
+        run: mkdir -p build/paquete && tar -xzf build/paquete.tar.gz -C build/paquete
+
+      - name: 4.1 Verificar entorno
+        run: scripts/entorno/verificar-entorno.sh
+
+      - name: 4.2 Respaldo de la base de datos
+        id: respaldo
+        run: scripts/despliegue/respaldar-bd.sh "$ENTORNO" "$VERSION"
+
+      - name: Guardar respaldo cifrado (90 días)
+        uses: actions/upload-artifact@v4
+        with:
+          name: respaldo-${{ env.ENTORNO }}-${{ env.VERSION }}
+          path: build/respaldos/
+          retention-days: 90
+
+      - name: 4.3 Migraciones
+        run: |
+          # Primera vez: la línea base ya existe en el servidor, solo se registra.
+          if [ -n "$MIGRACIONES_BASE" ]; then php bin/migrate.php --mark-applied="$MIGRACIONES_BASE"; fi
+          php bin/migrate.php
+
+      - name: 4.4 Generar configuración del entorno
+        run: scripts/entorno/generar-config.sh build/paquete "$ENTORNO"
+
+      - name: 4.5 Subir por FTPS
+        run: scripts/despliegue/subir-ftps.sh
+
+      - name: 5. Prueba de humo
+        id: humo
+        run: scripts/pruebas/humo.sh "$APP_URL" "$VERSION"
+
+      - name: 6. Pruebas de liberación
+        id: liberacion
+        if: env.ENTORNO == 'staging'
+        run: scripts/pruebas/pruebas-liberacion.sh "$APP_URL"
+
+      - name: Rollback automático de archivos
+        if: failure() && steps.humo.outcome == 'failure' && env.ENTORNO == 'production'
+        run: |
+          anterior=$(git tag --list 'v*.*.*' --sort=-v:refname | grep -vx "$VERSION" | head -1)
+          echo "::warning::Falló la prueba de humo. Regresando a $anterior"
+          scripts/despliegue/rollback.sh "$ENTORNO" "$anterior"
+          echo "Si hubo migraciones, restaura la base con el workflow 'Rollback' y el respaldo de esta ejecución." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Crear Release
+        if: success() && env.ENTORNO == 'production'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$VERSION" --generate-notes --verify-tag || true
+
+      - name: Resumen
+        if: always()
+        run: |
+          {
+            echo "## Despliegue $VERSION en $ENTORNO"
+            echo "| Dato | Valor |"
+            echo "|---|---|"
+            echo "| Resultado | ${{ job.status }} |"
+            echo "| Prueba de humo | ${{ steps.humo.outcome }} |"
+            echo "| Tiempo de respuesta | ${{ steps.liberacion.outputs.tiempo_respuesta_ms || 'n/a' }} ms |"
+            echo "| Commit | ${GITHUB_SHA::7} |"
+            echo "| Aprobó / disparó | ${{ github.actor }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

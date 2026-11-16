@@ -1,0 +1,32 @@
+# Fuerza HTTPS (actívalo una vez tengas el SSL de Hostinger activado en hPanel)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} off
+  # En el entorno de liberación local (Docker, localhost) no hay certificado
+  RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1)(:[0-9]+)?$
+  RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# Evita que el servidor liste el contenido de las carpetas
+Options -Indexes
+
+# Oculta la versión de PHP y del servidor en las cabeceras de respuesta
+ServerSignature Off
+<IfModule mod_headers.c>
+  Header always unset X-Powered-By
+  Header unset X-Powered-By
+</IfModule>
+
+# No permite acceso directo por navegador a archivos internos (solo pueden incluirse desde otro PHP)
+# config.local.php lo genera el pipeline con los datos de la base de datos (lo lee config.php).
+<FilesMatch "^(db|lib|lib_asignaciones|auth_check|session_config|security_headers|config|config\.local|config\.example)\.php$">
+  Require all denied
+</FilesMatch>
+
+# Nunca servir respaldos, SQL, textos ni archivos ocultos (version.txt se consulta desde health.php)
+<FilesMatch "\.(sql|zip|gz|gpg|bak|log|txt|md|ini|sh|yml|json|lock)$">
+  Require all denied
+</FilesMatch>
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>

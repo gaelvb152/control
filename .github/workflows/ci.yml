@@ -1,0 +1,145 @@
+# Integración continua: se ejecuta en cada pull request y en cada push a
+# ramas de trabajo. También la reutiliza el pipeline de despliegue (cd.yml),
+# así que ninguna versión se publica sin pasar por aquí.
+name: CI - Revisión y pruebas
+
+on:
+  pull_request:
+    branches: [develop, main, 'release/**']
+  push:
+    branches: ['feature/**', 'fix/**', 'hotfix/**']
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  revision:
+    name: 1. Revisión de código
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Permisos de los scripts (por si se subieron desde Windows)
+        run: chmod +x scripts/*/*.sh bin/*.sh
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer
+          coverage: none
+
+      - name: Dependencias (Composer)
+        uses: ramsey/composer-install@v3
+
+      - name: Sintaxis de PHP
+        run: composer lint
+
+      - name: Contraseñas escritas en el código
+        run: bin/check-secrets.sh
+
+      - name: Estilo de código (PSR-12)
+        run: composer cs
+
+      - name: Sintaxis de los scripts
+        run: shellcheck -S warning scripts/*/*.sh bin/*.sh
+
+      - name: Búsqueda de contraseñas en el historial
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Archivos que nunca deben estar en Git
+        run: |
+          if git ls-files | grep -E '(^|/)config\.local\.php$|\.sql\.gz$|(^|/)\.env$|uploads_nodrizas/.+\.jpg$'; then
+            echo "::error::Hay archivos con datos sensibles en el repositorio"
+            exit 1
+          fi
+
+  pruebas:
+    name: 2. Pruebas automáticas (PHP ${{ matrix.php }})
+    needs: revision
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: true
+      matrix:
+        php: ['8.2', '8.3']
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_DATABASE: control_bandas_test
+          MARIADB_USER: cb_test
+          MARIADB_PASSWORD: cb_test_pw
+          MARIADB_ROOT_PASSWORD: root
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    env:
+      CB_DB_HOST: 127.0.0.1
+      CB_DB_PORT: 3306
+      CB_DB_NAME: control_bandas_test
+      CB_DB_USER: cb_test
+      CB_DB_PASS: cb_test_pw
+      TZ: America/Hermosillo
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Permisos de los scripts (por si se subieron desde Windows)
+        run: chmod +x scripts/*/*.sh bin/*.sh
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo_mysql, gd, mbstring
+          ini-values: date.timezone=America/Hermosillo
+          coverage: none
+
+      - name: Dependencias (Composer)
+        uses: ramsey/composer-install@v3
+
+      - name: Migraciones + pruebas de API (PHPUnit)
+        run: bin/run-api-tests.sh --log-junit resultados-${{ matrix.php }}.xml
+
+      - name: Migraciones repetidas (no deben aplicar nada)
+        run: php bin/migrate.php | tee salida.txt && grep -q 'No hay migraciones pendientes' salida.txt
+
+      - name: Guardar resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultados-php-${{ matrix.php }}
+          path: resultados-${{ matrix.php }}.xml
+          retention-days: 30
+
+  liberacion-local:
+    name: 3. Prueba en entorno de liberación (Docker)
+    needs: pruebas
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Permisos de los scripts (por si se subieron desde Windows)
+        run: chmod +x scripts/*/*.sh bin/*.sh
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql
+          tools: none
+
+      - name: Levantar el paquete con Apache + MariaDB (igual que Hostinger)
+        run: make liberacion
+
+      - name: Prueba de humo y de liberación (respeta el .htaccess real)
+        run: make liberacion-pruebas
+
+      - name: Bitácora de Apache si algo falla
+        if: failure()
+        run: docker compose -f scripts/entorno/docker-compose.liberacion.yml logs --tail=100

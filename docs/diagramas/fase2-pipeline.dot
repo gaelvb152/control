@@ -1,0 +1,36 @@
+digraph pipeline {
+  rankdir=TB; nodesep=0.35; ranksep=0.42; newrank=true;
+  graph [fontname="DejaVu Sans", pad=0.3, bgcolor="white", dpi=200]
+  node [fontname="DejaVu Sans", fontsize=11, shape=box, style="rounded,filled", fillcolor="#F4F6F8", color="#5B6B7B", margin="0.20,0.09", width=3.3]
+  edge [fontname="DejaVu Sans", fontsize=9.5, color="#5B6B7B", arrowsize=0.8]
+
+  inicio [label="push, pull request o etiqueta vX.Y.Z", fillcolor="#E6F0FA", color="#2F6DB5"];
+
+  subgraph cluster_ci {
+    label="ci.yml  ·  integración continua"; labeljust=l; fontname="DejaVu Sans Bold"; fontsize=11;
+    style="rounded,dashed"; color="#2F6DB5"; fontcolor="#2F6DB5"; margin=14;
+    rev [label="1. Revisión de código\nsintaxis · estilo · contraseñas"];
+    pru [label="2. Pruebas automáticas\n103 casos · PHP 8.2 y 8.3 · MariaDB 10.11"];
+    lib [label="3. Entorno de liberación (Docker)\nApache + .htaccess real · humo y liberación"];
+  }
+
+  subgraph cluster_cd {
+    label="cd.yml  ·  liberación y despliegue"; labeljust=l; fontname="DejaVu Sans Bold"; fontsize=11;
+    style="rounded,dashed"; color="#2E7D32"; fontcolor="#2E7D32"; margin=14;
+    paq [label="4. Paquete\npublic_html sin secretos + version.txt"];
+    apr [label="5. Aprobación manual\n(solo producción)", fillcolor="#FFF3E0", color="#E08A00"];
+    dep [label="6. Despliegue\nverificar entorno → respaldo cifrado →\nmigraciones → config.local.php → FTPS", fillcolor="#E8F5E9", color="#2E7D32"];
+    humo [label="7. Prueba de humo\n(+ pruebas de liberación en staging)", fillcolor="#E8F5E9", color="#2E7D32"];
+  }
+
+  ok [label="Versión en línea\nRelease en GitHub", fillcolor="#DDEFE0", color="#1B5E20", penwidth=2.2];
+  alto [label="Se detiene\ny se avisa en GitHub", fillcolor="#FBE9E9", color="#B33A3A", width=2.2];
+  rb [label="Rollback automático\na la versión anterior", fillcolor="#FBE9E9", color="#B33A3A", width=2.2];
+
+  inicio -> rev -> pru -> lib -> paq -> apr -> dep -> humo;
+  humo -> ok [label="  pasa"];
+  humo -> rb [label="falla", color="#B33A3A", fontcolor="#B33A3A"];
+  pru -> alto [label="falla", color="#B33A3A", fontcolor="#B33A3A", style=dashed];
+  {rank=same; pru; alto}
+  {rank=same; humo; rb}
+}

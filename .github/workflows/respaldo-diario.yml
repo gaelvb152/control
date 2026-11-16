@@ -1,0 +1,44 @@
+# Respaldo diario de la base de producción (además del que se hace antes
+# de cada versión). Se guarda cifrado como artefacto por 30 días.
+# También deja en el resumen las métricas de uso del sistema.
+name: Respaldo diario y métricas
+
+on:
+  schedule:
+    - cron: '0 10 * * *'   # 3:00 a. m. en Hermosillo (UTC-7)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  respaldo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    env:
+      DB_HOST: ${{ secrets.DB_HOST }}
+      DB_NAME: ${{ secrets.DB_NAME }}
+      DB_USER: ${{ secrets.DB_USER }}
+      DB_PASS: ${{ secrets.DB_PASS }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Herramientas
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mariadb-client > /dev/null
+          chmod +x scripts/*/*.sh bin/*.sh
+
+      - name: Respaldar
+        run: scripts/despliegue/respaldar-bd.sh production diario
+
+      - name: Métricas de uso del día
+        run: scripts/monitoreo/metricas-uso.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: respaldo-diario-${{ github.run_id }}
+          path: build/respaldos/
+          retention-days: 30

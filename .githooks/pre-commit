@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Antes de cada commit: sintaxis de los PHP modificados y búsqueda de contraseñas.
+set -e
+cd "$(git rev-parse --show-toplevel)"
+git diff --cached --name-only --diff-filter=ACM | grep -E '\.php$' | while read -r f; do
+  php -l "$f" > /dev/null
+done
+if git diff --cached --name-only | grep -qE '(^|/)config\.local\.php$'; then
+  echo "✗ config.local.php nunca se sube a Git"; exit 1
+fi
+bin/check-secrets.sh > /dev/null

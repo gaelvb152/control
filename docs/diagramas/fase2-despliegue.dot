@@ -1,0 +1,37 @@
+digraph despliegue {
+  rankdir=TB; nodesep=0.35; ranksep=0.5; newrank=true;
+  graph [fontname="DejaVu Sans", pad=0.3, bgcolor="white", dpi=200]
+  node [fontname="DejaVu Sans", fontsize=11, shape=box, style="rounded,filled", fillcolor="#F4F6F8", color="#5B6B7B", margin="0.16,0.08"]
+  edge [fontname="DejaVu Sans", fontsize=9.5, color="#5B6B7B", arrowsize=0.75]
+
+  dev [label="Desarrollador\nmake up · make liberacion", fillcolor="#E6F0FA", color="#2F6DB5"];
+
+  subgraph cluster_gh {
+    label="GitHub"; labeljust=l; fontname="DejaVu Sans Bold"; fontsize=12; style="rounded"; color="#2F6DB5"; fontcolor="#2F6DB5"; margin=14;
+    repo [label="Repositorio\nmain · develop · etiquetas vX.Y.Z"];
+    act  [label="GitHub Actions\nCI · CD · rollback · monitoreo · respaldo diario"];
+    env  [label="Entornos staging / production\nsecretos y aprobación manual", fillcolor="#FFF3E0", color="#E08A00"];
+    art  [label="Artefactos\nrespaldos cifrados (30 y 90 días)"];
+  }
+
+  subgraph cluster_host {
+    label="Hostinger"; labeljust=l; fontname="DejaVu Sans Bold"; fontsize=12; style="rounded"; color="#2E7D32"; fontcolor="#2E7D32"; margin=14;
+    stg [label="Staging\nPHP 8.2 · Apache\nbase con datos anonimizados", fillcolor="#E8F5E9", color="#2E7D32"];
+    prd [label="Producción\nPHP 8.2 · Apache · uploads_nodrizas\nbase MariaDB real", fillcolor="#DDEFE0", color="#1B5E20", penwidth=2];
+  }
+
+  usr [label="Operadores y administración\n(celular / PC)", fillcolor="#E6F0FA", color="#2F6DB5"];
+  up  [label="UptimeRobot\nhealth.php cada 5 min", fillcolor="#FBE9E9", color="#B33A3A"];
+
+  dev -> repo [label=" push / pull request"];
+  repo -> act;
+  act -> env [label=" usa"];
+  act -> art [label=" respaldo"];
+  {rank=same; env; art}
+  env -> stg [label=" FTPS + MySQL remoto"];
+  env -> prd [label=" FTPS + MySQL remoto"];
+  {rank=same; stg; prd}
+  prd -> usr [label=" HTTPS", dir=back];
+  prd -> up [label=" HTTPS", style=dashed, dir=back];
+  {rank=same; usr; up}
+}

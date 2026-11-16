@@ -1,0 +1,35 @@
+# Entorno de liberación local: reproduce el paquete que se sube a Hostinger
+# (PHP 8.2 + Apache + MariaDB 10.11) para probarlo antes de publicarlo.
+# Uso: make liberacion   (ver Makefile). Puertos distintos al entorno de
+# desarrollo (make up usa 8080 y 8081).
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.liberacion
+    ports:
+      - "8082:80"
+    volumes:
+      - ../../build/paquete:/var/www/html:ro
+    environment:
+      TZ: America/Hermosillo
+    depends_on:
+      bd:
+        condition: service_healthy
+
+  bd:
+    image: mariadb:10.11
+    environment:
+      MARIADB_DATABASE: control_bandas_liberacion
+      MARIADB_USER: app
+      MARIADB_PASSWORD: app_local
+      MARIADB_ROOT_PASSWORD: root_local
+      TZ: America/Hermosillo
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3308:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      retries: 20

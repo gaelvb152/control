@@ -1,0 +1,56 @@
+# Monitoreo básico de producción (complementa a UptimeRobot).
+# Cada 30 minutos consulta health.php; si falla abre un issue con la
+# etiqueta "caida" y, cuando se recupera, lo cierra. Así queda registro
+# para calcular la disponibilidad y el tiempo de recuperación.
+name: Monitoreo de producción
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  salud:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: production
+    env:
+      GH_TOKEN: ${{ github.token }}
+      APP_URL: ${{ vars.APP_URL }}
+    steps:
+      - name: Consultar health.php
+        id: salud
+        run: |
+          set +e
+          respuesta=$(curl -s -w '\n%{http_code} %{time_total}' --max-time 20 "$APP_URL/health.php")
+          codigo=$(tail -1 <<< "$respuesta" | cut -d' ' -f1)
+          tiempo=$(tail -1 <<< "$respuesta" | awk '{printf "%d", $2*1000}')
+          echo "codigo=$codigo" >> "$GITHUB_OUTPUT"
+          echo "tiempo=$tiempo" >> "$GITHUB_OUTPUT"
+          echo "HTTP $codigo en $tiempo ms" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Registrar caída o recuperación
+        env:
+          CODIGO: ${{ steps.salud.outputs.codigo }}
+          TIEMPO: ${{ steps.salud.outputs.tiempo }}
+        run: |
+          gh label create caida --color B60205 --repo "$GITHUB_REPOSITORY" 2>/dev/null || true
+          abierto=$(gh issue list --repo "$GITHUB_REPOSITORY" --label caida --state open --json number -q '.[0].number')
+          hora=$(TZ=America/Hermosillo date '+%Y-%m-%d %H:%M')
+          if [ "$CODIGO" != "200" ]; then
+            if [ -z "$abierto" ]; then
+              gh issue create --repo "$GITHUB_REPOSITORY" --label caida \
+                --title "Producción sin servicio ($hora)" \
+                --body "health.php respondió HTTP $CODIGO. Severidad crítica: atender el mismo día."
+            fi
+            exit 1
+          elif [ -n "$abierto" ]; then
+            gh issue close "$abierto" --repo "$GITHUB_REPOSITORY" \
+              --comment "Servicio recuperado a las $hora ($TIEMPO ms)."
+          fi
+          if [ "${TIEMPO:-0}" -gt 2000 ]; then
+            echo "::warning::Respuesta lenta: $TIEMPO ms"
+          fi

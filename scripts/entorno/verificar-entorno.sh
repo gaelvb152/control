@@ -39,6 +39,7 @@ if lftp -c "set ftp:ssl-force true; set ftp:ssl-protect-data true; \
   ok "Acceso FTPS a $FTP_DIR"
 else
   error "No hay acceso FTPS a $FTP_HOST:$FTP_DIR"
+  aviso "Si el error es del certificado (por usar la IP), crea la variable FTP_VERIFY_CERT=no en el entorno"
   fallos=$((fallos+1))
 fi
 

@@ -50,25 +50,25 @@ if [ -f "$RUTAS" ]; then
   while IFS= read -r ruta; do
     [[ -z "$ruta" || "$ruta" == \#* ]] && continue
     c=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$URL/$ruta")
-    [[ "$c" =~ ^(401|403)$ ]]; caso LIB-04 "Sin sesión se niega /$ruta" $? "(HTTP $c)"
+    if [[ "$c" =~ ^(401|403)$ ]]; then r=0; else r=1; fi; caso LIB-04 "Sin sesión se niega /$ruta" "$r" "(HTTP $c)"
   done < "$RUTAS"
 fi
 
 # LIB-05 Las fotos de las nodrizas no se pueden abrir directo (solo por foto.php)
 c=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$URL/uploads_nodrizas/")
-[ "$c" != "200" ]; caso LIB-05 "Sin acceso a /uploads_nodrizas/" $? "(HTTP $c)"
+if [ "$c" != "200" ]; then r=0; else r=1; fi; caso LIB-05 "Sin acceso a /uploads_nodrizas/" "$r" "(HTTP $c)"
 c=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$URL/uploads_nodrizas/00000000000000000000000000aa.jpg")
-[ "$c" = "403" ] || [ "$c" = "404" ]; caso LIB-05 "Foto directa bloqueada" $? "(HTTP $c)"
+if [ "$c" = "403" ] || [ "$c" = "404" ]; then r=0; else r=1; fi; caso LIB-05 "Foto directa bloqueada" "$r" "(HTTP $c)"
 
 # LIB-06 Tiempo de respuesta (promedio de 5 peticiones a health.php)
 prom=$(for _ in 1 2 3 4 5; do
          curl -s -o /dev/null -w '%{time_total}\n' --max-time 20 "$URL/health.php"
        done | awk '{s+=$1} END {printf "%d", (s/NR)*1000}')
-[ "$prom" -le "$LIMITE_MS" ]; caso LIB-06 "Tiempo de respuesta promedio ${prom} ms (límite ${LIMITE_MS} ms)" $?
+if [ "$prom" -le "$LIMITE_MS" ]; then r=0; else r=1; fi; caso LIB-06 "Tiempo de respuesta promedio ${prom} ms (límite ${LIMITE_MS} ms)" "$r"
 
 # LIB-07 login.php solo acepta POST
 c=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$URL/login.php")
-[ "$c" = "405" ]; caso LIB-07 "login.php rechaza GET (405)" $? "(HTTP $c)"
+if [ "$c" = "405" ]; then r=0; else r=1; fi; caso LIB-07 "login.php rechaza GET (405)" "$r" "(HTTP $c)"
 
 echo
 echo "tiempo_respuesta_ms=$prom" >> "${GITHUB_OUTPUT:-/dev/null}"

@@ -42,6 +42,7 @@ jobs:
       FTP_USER: ${{ secrets.FTP_USER }}
       FTP_PASS: ${{ secrets.FTP_PASS }}
       FTP_DIR: ${{ vars.FTP_DIR }}
+      FTP_VERIFY_CERT: ${{ vars.FTP_VERIFY_CERT || 'yes' }}
       BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
     steps:
       - uses: actions/checkout@v4

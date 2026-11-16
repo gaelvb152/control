@@ -41,6 +41,7 @@ paquete: ## Arma build/paquete igual que el pipeline
 
 liberacion: paquete ## Levanta el paquete con Apache + MariaDB en http://localhost:8082
 	$(LIB_BD) APP_DB_HOST=bd APP_DB_PORT=3306 scripts/entorno/generar-config.sh build/paquete local
+	chmod 644 build/paquete/config.local.php   # en Docker Apache corre con otro usuario
 	$(COMPOSE_LIB) up -d --build --wait
 	$(LIB_BD) CB_DB_HOST=127.0.0.1 CB_DB_PORT=3308 CB_DB_NAME=control_bandas_liberacion CB_DB_USER=app CB_DB_PASS=app_local php bin/migrate.php
 

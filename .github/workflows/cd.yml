@@ -89,6 +89,7 @@ jobs:
       FTP_USER: ${{ secrets.FTP_USER }}
       FTP_PASS: ${{ secrets.FTP_PASS }}
       FTP_DIR: ${{ vars.FTP_DIR }}
+      FTP_VERIFY_CERT: ${{ vars.FTP_VERIFY_CERT || 'yes' }}
       BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
       MIGRACIONES_BASE: ${{ vars.MIGRACIONES_BASE }}
       TZ: America/Hermosillo
